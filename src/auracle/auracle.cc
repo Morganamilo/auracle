@@ -567,24 +567,38 @@ int Auracle::BuildOrder(const std::vector<std::string>& args,
     return -ENOENT;
   }
 
-  std::vector<const aur::Package*> total_ordering;
+  std::vector<std::pair<std::string, const aur::Package*>> total_ordering;
   std::unordered_set<std::string> seen;
   for (const auto& arg : args) {
     iter.package_cache.WalkDependencies(
         arg, [&total_ordering, &seen](const std::string& pkgname,
                                       const aur::Package* package) {
-          if (seen.emplace(pkgname).second && package != nullptr) {
-            total_ordering.push_back(package);
+          if (seen.emplace(pkgname).second) {
+            total_ordering.emplace_back(pkgname, package);
           }
         });
   }
 
   for (const auto& p : total_ordering) {
-    if (pacman_->DependencyIsSatisfied(p->name)) {
-      continue;
+    const bool satisfied = pacman_->DependencyIsSatisfied(p.first);
+    const bool foreign = p.second != nullptr;
+    const bool unknown = !foreign and !pacman_->HasPackage(p.first);
+
+    if (unknown) {
+      std::cout << "UNKNOWN";
+    } else {
+      if (satisfied) {
+        std::cout << "SATISFIED";
+      }
+
+      if (foreign) {
+        std::cout << "FOREIGN";
+      } else {
+        std::cout << "BINARY";
+      }
     }
 
-    std::cout << "BUILD " << p->name << "\n";
+    std::cout << " " << p.first << "\n";
   }
 
   return 0;
